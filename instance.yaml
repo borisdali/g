@@ -1,0 +1,37 @@
+apiVersion: graybox.anthosapis.com/v1alpha1
+kind: Instance
+metadata:
+  name: "<your-inst-fqn>" # {"$kpt-set":"inst-fqn"}
+  namespace: "<your-ns-fleet>" # {"$kpt-set":"namespace-fleet"}
+  annotations:
+    "graybox.anthosapis.com/dry-repo-hash": "<system-commit-hash>" # {"$kpt-set":"commit-hash"}
+spec:
+  type: Oracle
+  version: "12.2"
+  edition: Enterprise
+  DBDomain: "graybox.gke"
+  disks: [{name: "DataDisk", type: "pd-standard", size: "45Gi"}, {name: "LogDisk",
+      type: "pd-standard", size: "55Gi"}]
+  storageClass: "<your-storage-class>" # {"$kpt-set":"storage-class"}
+  services: # {"$kpt-set":"services"}
+  - "<your-services>"
+  sourceCidrRanges: [0.0.0.0/0]
+  imageContainsCDB: true
+  image:
+  - service: "<your-dbimage-GCR-location>" # {"$kpt-set":"dbimage-service"}
+  parameters:
+    # parallel_servers_target:dynamic  disk_asynch_io:static
+    ParameterList: ["parallel_servers_target=10", "disk_asynch_io=true"]
+    # restartTimeRange: ["2021-01-15T15:30:30Z", "2021-01-15T15:45:30Z"]
+# Uncomment this section to trigger a restore.
+#  restore:
+#    backupType: "Snapshot" (or "Physical")
+#    backupId: "graydb-20200705-snap-996678001"
+#    force: True
+#    # once applied, new requests with same or older time will be ignored,
+#    # current time can be generated using the command: date -u '+%Y-%m-%dT%H:%M:%SZ'
+#    grayboxRequestTime: "2000-01-19T01:23:45Z"
+#    # Physical backup specific attributes:
+#    dop: 2
+#    # The unit for time limit is minutes (but specify just an integer).
+#    timeLimit: 180
