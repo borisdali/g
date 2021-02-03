@@ -29,8 +29,8 @@ spec:
   parameters:
     # parallel_servers_target:dynamic  disk_asynch_io:static
     ParameterList: [
-      {parallel_servers_target: "15"},
-      {disk_asynch_io: "TRUE"}
+      {name: "parallel_servers_target", value: "15"},
+      {name: "disk_asynch_io", value: "true"}
     ]
     restartTimeRange: ["2021-01-15T15:30:30Z", "2021-01-15T15:45:30Z"]
 # Uncomment this section to trigger a restore.
