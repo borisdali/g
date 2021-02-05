@@ -7,7 +7,6 @@ spec:
   version: "12.2"
   edition: Enterprise
   DBDomain: "graybox.gke"
-  DBDomain: graybox.gke
   disks:
   - name: DataDisk
     size: 45Gi
@@ -15,13 +14,15 @@ spec:
   - name: LogDisk
     size: 55Gi
     type: pd-standard
-  storageClass: "<your-storage-class>" # {"$kpt-set":"storage-class"}
-  services: # {"$kpt-set":"services"}
-  - "<your-services>"
+  storageClass: csi-gce-pd
+  services:
+  - Backup
+  - Logging
+  - Monitoring
   sourceCidrRanges: [0.0.0.0/0]
   imageContainsCDB: true
   image:
-  - service: "<your-dbimage-GCR-location>" # {"$kpt-set":"dbimage-service"}
+  - service: "gcr.io/graybox-builds/oracle_12_2_enterprise_service:stable"
 # Uncomment this section to trigger a restore.
 #  restore:
 #    backupType: "Snapshot" (or "Physical")
