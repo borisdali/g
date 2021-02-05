@@ -1,7 +1,7 @@
-# Graybox ora02 kpt package
+# Graybox ora03 kpt package
 
 ## Description
-Graybox ora02 kpt package contains blueprints intended for
+Graybox ora03 kpt package contains blueprints intended for
 the Architecture/Platform team to own to promote corp standards
 across the organization for database fleet-wide consistency.
 
