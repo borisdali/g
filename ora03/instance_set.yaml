@@ -2,14 +2,16 @@
 apiVersion: graybox.anthosapis.com/v1alpha1
 kind: InstanceSet
 metadata:
-  name: orderentry-iset02
-  namespace: "<your-ns-fleet>" # {"$kpt-set":"namespace-fleet"}
+  name: orderentry-iset03
 spec:
   appProperties:
-    name: "<your-app>" # {"$kpt-set":"app"}
-    envs: # {"$kpt-set":"envs"}
-    - "<your-envs>"
-    tier: "<your-tier>" # {"$kpt-set":"tier"}
+    name: changeMe
+    envs:
+    - Dev
+    - Test
+    - Staging
+    - Prod
+    tier: Development
     growthProfile: "Transactional"
     upgradePolicy: "Manual"
     # manintenanceWindows:

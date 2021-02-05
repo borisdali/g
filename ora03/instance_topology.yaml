@@ -1,16 +1,15 @@
 apiVersion: graybox.anthosapis.com/v1alpha1
 kind: InstanceTopology
 metadata:
-  name: "<your-inst-topology>" # {"$kpt-set":"inst-topology"}
-  namespace: "<your-ns-fleet>" # {"$kpt-set":"namespace-fleet"}
+  name: "graydb-topology>"
 spec:
-  fleetInstanceName: "<your-inst-fqn>" # {"$kpt-set":"inst-fqn"}
-  edgeInstanceName: "<your-inst>" # {"$kpt-set":"inst"}
-  edgeNamespace: "<your-namespace-edge>" # {"$kpt-set":"namespace-edge"}
-  appName: "<your-app>" # {"$kpt-set":"app"}
-  instanceRole: "<your-inst-role>" # {"$kpt-set":"inst-role"}
-  env: "<your-env>" # {"$kpt-set":"env"}
-  clusterName: "<your-cluster-fqn>" # {"$kpt-set":"cluster-fqn"}
-  pathManifest: "<your-path-manifest>" # {"$kpt-set":"path-manifest"}
+  fleetInstanceName: "graydb-alias"
+  edgeInstanceName: "graydb"
+  edgeNamespace: changeMe
+  appName: changeMe
+  instanceRole: "Primary"
+  env: changeMe
+  clusterName: changeMe
+  pathManifest: system-generated
 #  relatedInstances:
 #  databases: 
