@@ -1,0 +1,13 @@
+# User provided input/parameters for hydrating the DRY blueprints.
+# This is for you to own and provide your app specific values.
+# Sample values are presented below:
+app: financials
+inst: graydb
+inst-role: primary
+envs: Dev Build Test Stage Prod
+services: Backup Logging Monitoring
+dbimage-service: gs://<your project>/...
+# Fully qualifed name of a cluster:
+cluster-fqn: gke_<projectName>_<location>_<clusterName>
+storage-class: csi-gce-pd
+tier: Critical
