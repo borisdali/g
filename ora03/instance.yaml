@@ -1,17 +1,20 @@
 apiVersion: graybox.anthosapis.com/v1alpha1
 kind: Instance
 metadata:
-  name: "<your-inst-fqn>" # {"$kpt-set":"inst-fqn"}
-  namespace: "<your-ns-fleet>" # {"$kpt-set":"namespace-fleet"}
-  annotations:
-    "graybox.anthosapis.com/dry-repo-hash": "<system-commit-hash>" # {"$kpt-set":"commit-hash"}
+  name: "graydb"
 spec:
   type: Oracle
   version: "12.2"
   edition: Enterprise
   DBDomain: "graybox.gke"
-  disks: [{name: "DataDisk", type: "pd-standard", size: "45Gi"}, {name: "LogDisk",
-      type: "pd-standard", size: "55Gi"}]
+  DBDomain: graybox.gke
+  disks:
+  - name: DataDisk
+    size: 45Gi
+    type: pd-standard
+  - name: LogDisk
+    size: 55Gi
+    type: pd-standard
   storageClass: "<your-storage-class>" # {"$kpt-set":"storage-class"}
   services: # {"$kpt-set":"services"}
   - "<your-services>"
