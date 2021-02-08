@@ -6,11 +6,7 @@ metadata:
 spec:
   appProperties:
     name: changeMe
-    envs:
-    - Dev
-    - Test
-    - Staging
-    - Prod
+    envs: [dev, test, stage, prod]
     tier: Development
     growthProfile: "Transactional"
     upgradePolicy: "Manual"
