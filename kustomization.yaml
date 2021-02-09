@@ -1,4 +1,3 @@
 resources:
-- instance_set.yaml
 - instance.yaml
 - instance_topology.yaml
