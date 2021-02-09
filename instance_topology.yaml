@@ -1,7 +1,7 @@
 apiVersion: graybox.anthosapis.com/v1alpha1
 kind: InstanceTopology
 metadata:
-  name: "graydb-topology>"
+  name: "graydb-topology"
 spec:
   fleetInstanceName: "graydb-alias"
   edgeInstanceName: "graydb"
