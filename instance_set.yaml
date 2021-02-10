@@ -6,7 +6,6 @@ metadata:
 spec:
   appProperties:
     name: changeMe
-    envs: [dev, test, stage, prod]
     envs:
       - name: "dev"
       - name: "test"
