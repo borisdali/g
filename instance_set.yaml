@@ -7,6 +7,13 @@ spec:
   appProperties:
     name: changeMe
     envs: [dev, test, stage, prod]
+    envs:
+      - name: "dev"
+      - name: "test"
+        includeInReleasePipeline: true
+        releasePipelinePreviousEnvironmentDelay: 7d
+      - name: "stage"
+      - name: "prod"
     tier: Development
     growthProfile: "Transactional"
     upgradePolicy: "Manual"
