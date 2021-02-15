@@ -23,6 +23,11 @@ spec:
   imageContainsCDB: true
   image:
   - service: "gcr.io/graybox-builds/oracle_12_2_enterprise_service:stable"
+  parameters:
+    # parallel_servers_target:dynamic  disk_asynch_io:static
+    parameterList: ["parallel_servers_target=15", "disk_asynch_io=TRUE"]
+    restartTimeRange: ["2021-01-15T15:30:30Z", "2121-02-15T15:45:30Z"]
+  additionalParams: ["open_cursors=300", "db_block_size=8192", "processes=300"]
 # Uncomment this section to trigger a restore.
 #  restore:
 #    backupType: "Snapshot" (or "Physical")

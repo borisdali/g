@@ -2,7 +2,7 @@
 apiVersion: graybox.anthosapis.com/v1alpha1
 kind: InstanceSet
 metadata:
-  name: orderentry-iset03
+  name: orderentry-iset
 spec:
   appProperties:
     name: changeMe
@@ -10,8 +10,7 @@ spec:
       - name: "dev"
       - name: "test"
         includeInReleasePipeline: true
-        releasePipelinePreviousEnvironmentDelay: 7d
-      - name: "stage"
+        releasePipelinePreviousEnvironmentDelay: 168h
       - name: "prod"
     tier: Development
     growthProfile: "Transactional"
