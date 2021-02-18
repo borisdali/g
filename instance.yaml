@@ -3,7 +3,7 @@ kind: Instance
 metadata:
   name: "graydb"
 spec:
-#  type: Mimir
+  type: Mimir
   version: "12.2"
   edition: Enterprise
   DBDomain: "graybox.gke"
