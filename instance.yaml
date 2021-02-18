@@ -21,6 +21,7 @@ spec:
   - Monitoring
   sourceCidrRanges: [0.0.0.0/0]
   imageContainsCDB: true
+  CDBName: "GCLOUD"
   image:
   - service: "gcr.io/graybox-builds/oracle_12_2_enterprise_service:stable"
   parameters:
