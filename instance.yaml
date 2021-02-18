@@ -19,11 +19,12 @@ spec:
   - Backup
   - Logging
   - Monitoring
+  - ComplianceDaemon
   sourceCidrRanges: [0.0.0.0/0]
   imageContainsCDB: true
   CDBName: "GCLOUD"
-  image:
-  - service: "gcr.io/graybox-builds/oracle_12_2_enterprise_service:stable"
+  images:
+    service: "gcr.io/graybox-builds/oracle_12_2_enterprise_service:stable"
   parameters:
     # parallel_servers_target:dynamic  disk_asynch_io:static
     parameterList: ["parallel_servers_target=15", "disk_asynch_io=TRUE"]
