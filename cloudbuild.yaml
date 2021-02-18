@@ -1,0 +1,279 @@
+substitutions:
+  "_GITHUB_USER": "borisdali"
+  "_SOURCE_PATH": "apps"
+  "_SOURCE_REPO": "gray"
+  "_DEST_REPO": "gray-wet"
+  "_DEST_PATH": "final/namespaces"
+  "_NAMESPACE_FLEET": "fleet-objects-git"
+  "_SECRET_NAME": "cloud-build-secret"
+  "_APP_NAME": "orderentry"
+  "_PROJECT_KUSTOMIZE": "bdali-playground-graybox"
+timeout: 720s
+steps:
+# This step works for public repos only:
+# - name: 'gcr.io/cloud-builders/git'
+#   id: 'Clone a DRY repo'
+#   args: ['clone', "https://github.com/${_GITHUB_USER}/${_SOURCE_REPO}.git"]
+#   dir: /source
+#   volumes:
+#   - name: source
+#     path: /source
+
+- name: gcr.io/cloud-builders/gcloud
+  id: 'Setup id_github file from Secret Manager'
+  entrypoint: 'bash'
+  args: [ '-c', 'gcloud secrets versions access latest --secret=${_SECRET_NAME} > /root/.ssh/id_github' ]
+  volumes:
+  - name: 'ssh'
+    path: /root/.ssh
+
+- name: 'gcr.io/cloud-builders/git'
+  id: 'Create ssh config and add GitHub as a known host'
+  entrypoint: 'bash'
+  args:
+  - '-c'
+  - |
+    chmod 600 /root/.ssh/id_github
+    cat <<EOF >/root/.ssh/config
+    Hostname github.com
+    IdentityFile /root/.ssh/id_github
+    EOF
+    ssh-keyscan -t rsa github.com > /root/.ssh/known_hosts
+  volumes:
+  - name: 'ssh'
+    path: /root/.ssh
+
+- name: 'gcr.io/cloud-builders/git'
+  id: 'Clone a DRY repo'
+  args:
+  - clone
+  - --recurse-submodules
+  - git@github.com:${_GITHUB_USER}/${_SOURCE_REPO}
+  dir: /source
+  volumes:
+  - name: 'ssh'
+    path: /root/.ssh
+  - name: 'source'
+    path: /source
+
+- name: 'gcr.io/cloud-builders/git'
+  id: 'Clone a WET repo'
+  args:
+  - clone
+  - --recurse-submodules
+  - git@github.com:${_GITHUB_USER}/${_DEST_REPO}
+  dir: /dest
+  volumes:
+  - name: 'ssh'
+    path: /root/.ssh
+  - name: 'dest'
+    path: /dest
+
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  id: 'Copy changes: DRY->WET'
+  waitFor:
+  - 'Clone a DRY repo'
+  - 'Clone a WET repo'
+  dir: /dest
+  entrypoint: /bin/sh
+  args:
+  - '-c'
+  - |
+    ls -lR /source/${_SOURCE_REPO}/${_SOURCE_PATH}
+    cd /dest/${_DEST_REPO}
+    git remote get-url origin
+
+    rm -rf /dest/${_DEST_REPO}/apps/${_APP_NAME}
+    mkdir -p /dest/${_DEST_REPO}/apps/${_APP_NAME}
+    rm -rf /dest/${_DEST_REPO}/${_SOURCE_PATH}/envs/${_APP_NAME}
+    mkdir -p /dest/${_DEST_REPO}/${_SOURCE_PATH}/envs/${_APP_NAME}
+    rm -rf /dest/${_DEST_REPO}/${_DEST_PATH}/${_NAMESPACE_FLEET}/*${_APP_NAME}*
+    mkdir -p /dest/${_DEST_REPO}/${_DEST_PATH}/${_NAMESPACE_FLEET}
+    cat <<EOF > /dest/${_DEST_REPO}/${_DEST_PATH}/${_NAMESPACE_FLEET}/namespace.yaml
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: ${_NAMESPACE_FLEET}
+    EOF
+
+    mkdir -p /dest/${_DEST_REPO}/${_DEST_PATH}/../system
+    cat <<EOF > /dest/${_DEST_REPO}/${_DEST_PATH}/../system/repo.yaml
+    apiVersion: configmanagement.gke.io/v1
+    kind: Repo
+    metadata:
+      name: repo
+    spec:
+      version: 1.0.0
+    EOF
+
+    echo "content of /dest BEFORE:"
+    ls -lR /dest/${_DEST_REPO}/${_DEST_PATH}/${_NAMESPACE_FLEET}
+
+    cp -r /source/${_SOURCE_REPO}/${_SOURCE_PATH}/${_APP_NAME}/* /dest/${_DEST_REPO}/apps/${_APP_NAME}/
+    cp -r /source/${_SOURCE_REPO}/${_SOURCE_PATH}/envs/${_APP_NAME}/* /dest/${_DEST_REPO}/${_SOURCE_PATH}/envs/${_APP_NAME}/
+    touch /dest/${_DEST_REPO}/.gitkeep
+    echo "content of /dest/.../${_SOURCE_PATH} AFTER:"
+    ls -lR /dest/${_DEST_REPO}/${_SOURCE_PATH}
+    echo "content of /dest/.../apps AFTER:"
+    ls -lR /dest/${_DEST_REPO}/apps
+
+    # Configure Git to create commits with Cloud Build's service account:
+    git config user.email $(gcloud auth list --filter=status:ACTIVE --format='value(account)')
+    git status
+    echo "Copy: latest deployment repo commit SHA: $(git rev-parse HEAD)"
+  timeout: 300s
+  volumes:
+  - name: source
+    path: /source
+  - name: dest
+    path: /dest
+  - name: 'ssh'
+    path: /root/.ssh
+
+- name: 'gcr.io/${_PROJECT_KUSTOMIZE}/parser'
+  id: 'Env Setup'
+  waitFor:
+  - 'Copy changes: DRY->WET'
+  dir: /dest/${_DEST_REPO}
+  entrypoint: /parser
+  args:
+  args: [ "-manifest_type", "InstanceSet", "-manifest", "apps/${_APP_NAME}/instance_set.yaml", "-output_file", "apps/${_APP_NAME}/envs" ]
+  timeout: 60s
+  volumes:
+  - name: dest
+    path: /dest
+  - name: 'ssh'
+    path: /root/.ssh
+
+- name: 'gcr.io/${_PROJECT_KUSTOMIZE}/kustomize'
+  id: 'Transform'
+  waitFor:
+  - 'Env Setup'
+  dir: /dest/${_DEST_REPO}
+  entrypoint: bash
+  args:
+  - '-c'
+  - |
+    echo "  appName: ${_APP_NAME}" >> apps/${_APP_NAME}/instance_topology.yaml
+    echo "  pathManifest: apps/${_APP_NAME}" >> apps/${_APP_NAME}/instance_topology.yaml
+    awk '/metadata/ {getline; gsub(/"/, ""); print $2}' apps/${_APP_NAME}/instance.yaml>/tmp/i
+    envs=`cat apps/${_APP_NAME}/envs`
+    echo "envs: $envs"
+    cd ${_DEST_PATH}/${_NAMESPACE_FLEET}
+    mkdir -p iset
+    mv ../../../apps/${_APP_NAME}/instance_set.yaml iset/
+    for e in `cat ../../../apps/${_APP_NAME}/envs`; do
+      echo "app/env: ${_APP_NAME}/${e}"
+      mkdir -p ${e}
+      cd ${e}
+      cat <<EOF > kustomization.yaml
+    apiVersion: kustomize.config.k8s.io/v1beta1
+    kind: Kustomization
+    resources:
+    - ../../../../apps/${_APP_NAME}
+    commonLabels:
+        app: "${_APP_NAME}"
+        env: "${e}"
+    commonAnnotations:
+         "graybox.anthosapis.com/dry-repo-hash": commit-hash
+    nameSuffix: "-${_APP_NAME}-${e}"
+    namespace: fleet-objects-git
+    EOF
+
+      if [ -d "/dest/${_DEST_REPO}/${_SOURCE_PATH}/envs/${_APP_NAME}/${e}" ] ;then
+        echo "patches:" >> kustomization.yaml
+        echo "- path: instance_topology.yaml" >> kustomization.yaml
+        echo "  target:" >> kustomization.yaml
+        echo "    kind: InstanceTopology" >> kustomization.yaml
+
+        cp kustomization.yaml ../iset
+        mv kustomization.yaml /dest/${_DEST_REPO}/${_SOURCE_PATH}/envs/${_APP_NAME}/${e}/
+        kustomize build /dest/${_DEST_REPO}/${_SOURCE_PATH}/envs/${_APP_NAME}/${e} > tmp.yaml
+        echo "kustomize rc (envs): $?"
+        mv /dest/${_DEST_REPO}/${_SOURCE_PATH}/envs/${_APP_NAME}/${e}/kustomization.yaml ../kustomization-${_APP_NAME}-${e}
+      else
+        cp kustomization.yaml ../iset
+        kustomize build . > tmp.yaml
+        echo "kustomize rc: $?"
+        mv kustomization.yaml ../kustomization-${_APP_NAME}-${e}
+      fi
+
+      echo "  env: ${e}" >> tmp.yaml
+      echo "  fleetInstanceName: `cat /tmp/i`-${_APP_NAME}-${e}" >> tmp.yaml
+      cat tmp.yaml >> ../${_APP_NAME}.yaml
+      rm tmp.yaml
+      cd ..
+      ls -l ${e}
+      rmdir ${e}
+      echo "---" >> ${_APP_NAME}.yaml
+    done
+
+    cd iset
+    sed -i '/nameSuffix/d' kustomization.yaml
+    sed -i '/base/d' kustomization.yaml
+    sed -i '/^-/,$d' kustomization.yaml
+    sed -i 's]resources:]resources:\n- instance_set.yaml]' kustomization.yaml
+    sed -i '/^patches/,$d' kustomization.yaml
+    kustomize build . > tmp.yaml
+    echo "kustomize rc (iset): $?"
+    cat tmp.yaml >> ../${_APP_NAME}.yaml
+    rm tmp.yaml instance_set.yaml
+    mv kustomization.yaml ../kustomization-${_APP_NAME}
+    cd ..
+    rmdir iset
+  timeout: 300s
+  volumes:
+  - name: dest
+    path: /dest
+  - name: 'ssh'
+    path: /root/.ssh
+
+- name: 'gcr.io/kpt-dev/kpt:latest'
+  id: 'Validate'
+  waitFor:
+  - 'Transform'
+  dir: /dest/${_DEST_REPO}
+  entrypoint: /bin/sh
+  args:
+  - '-c'
+  - |
+    cd /dest/${_DEST_REPO}/${_DEST_PATH}/${_NAMESPACE_FLEET}
+
+    cd /dest/${_DEST_REPO}
+    git diff --name-only
+    git add .
+    git status
+
+    if git diff --cached --exit-code; then echo "H/V verdict: no changes"; true;
+    else git commit -m "H/V verdict: DRY repo commit SHA is ${COMMIT_SHA}"; fi
+    echo "H/V: WET repo commit SHA is $(git rev-parse HEAD)"
+  timeout: 300s
+  volumes:
+  - name: dest
+    path: /dest
+  - name: 'ssh'
+    path: /root/.ssh
+
+- name: 'gcr.io/cloud-builders/git'
+  id: 'Push changes to a WET repo'
+  waitFor:
+  - 'Validate'
+  entrypoint: 'bash'
+  args:
+  - '-c'
+  - |
+    ls -lR /dest/${_DEST_REPO}/${_DEST_PATH}/${_NAMESPACE_FLEET}
+    git remote get-url origin
+    echo "The log of the last two Git changes:"
+    git log -2
+    echo "Push to WET repo: latest deployment repo commit SHA: $(git rev-parse HEAD)"
+    git ls-remote
+    git push git@github.com:"${_GITHUB_USER}"/"${_DEST_REPO}".git
+    echo "The end of step: Push changes to a WET repo"
+  dir: /dest/${_DEST_REPO}
+  volumes:
+  - name: dest
+    path: /dest
+  - name: 'ssh'
+    path: /root/.ssh
+
