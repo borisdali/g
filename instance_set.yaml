@@ -2,10 +2,9 @@
 apiVersion: graybox.anthosapis.com/v1alpha1
 kind: InstanceSet
 metadata:
-  name: orderentry-iset
+  name: system-generated-ignore
 spec:
   appProperties:
-    name: changeMe
     envs:
     - name: "dev"
     - name: "test"
