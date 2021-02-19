@@ -6,23 +6,23 @@ substitutions:
   "_DEST_PATH": "final/namespaces"
   "_NAMESPACE_FLEET": "fleet-objects-git"
   "_SECRET_NAME": "cloud-build-secret"
-  "_APP_NAME": "orderentry"
+  "_APP_NAME": "financials"
   "_PROJECT_KUSTOMIZE": "bdali-playground-graybox"
 timeout: 720s
 steps:
-# This step works for public repos only:
-# - name: 'gcr.io/cloud-builders/git'
-#   id: 'Clone a DRY repo'
-#   args: ['clone', "https://github.com/${_GITHUB_USER}/${_SOURCE_REPO}.git"]
-#   dir: /source
-#   volumes:
-#   - name: source
-#     path: /source
-
 - name: gcr.io/cloud-builders/gcloud
+  # This step works for public repos only:
+  # - name: 'gcr.io/cloud-builders/git'
+  #   id: 'Clone a DRY repo'
+  #   args: ['clone', "https://github.com/${_GITHUB_USER}/${_SOURCE_REPO}.git"]
+  #   dir: /source
+  #   volumes:
+  #   - name: source
+  #     path: /source
+
   id: 'Setup id_github file from Secret Manager'
   entrypoint: 'bash'
-  args: [ '-c', 'gcloud secrets versions access latest --secret=${_SECRET_NAME} > /root/.ssh/id_github' ]
+  args: ['-c', 'gcloud secrets versions access latest --secret=${_SECRET_NAME} > /root/.ssh/id_github']
   volumes:
   - name: 'ssh'
     path: /root/.ssh
@@ -42,7 +42,6 @@ steps:
   volumes:
   - name: 'ssh'
     path: /root/.ssh
-
 - name: 'gcr.io/cloud-builders/git'
   id: 'Clone a DRY repo'
   args:
@@ -137,7 +136,7 @@ steps:
   dir: /dest/${_DEST_REPO}
   entrypoint: /parser
   args:
-  args: [ "-manifest_type", "InstanceSet", "-manifest", "apps/${_APP_NAME}/instance_set.yaml", "-output_file", "apps/${_APP_NAME}/envs" ]
+  args: ["-manifest_type", "InstanceSet", "-manifest", "apps/${_APP_NAME}/instance_set.yaml", "-output_file", "apps/${_APP_NAME}/envs"]
   timeout: 60s
   volumes:
   - name: dest
@@ -216,8 +215,13 @@ steps:
     sed -i '/^patches/,$d' kustomization.yaml
     kustomize build . > tmp.yaml
     echo "kustomize rc (iset): $?"
+    sed -i "/metadata:/! b;n;c\ \ name: ${_APP_NAME}-iset" tmp.yaml
+    echo "    name: ${_APP_NAME}" >> tmp.yaml
     cat tmp.yaml >> ../${_APP_NAME}.yaml
-    rm tmp.yaml instance_set.yaml
+
+    mv instance_set.yaml ../../../../apps/${_APP_NAME}/
+
+    rm tmp.yaml
     mv kustomization.yaml ../kustomization-${_APP_NAME}
     cd ..
     rmdir iset
@@ -276,4 +280,3 @@ steps:
     path: /dest
   - name: 'ssh'
     path: /root/.ssh
-
