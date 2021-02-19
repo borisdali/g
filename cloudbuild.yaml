@@ -135,7 +135,6 @@ steps:
   - 'Copy changes: DRY->WET'
   dir: /dest/${_DEST_REPO}
   entrypoint: /parser
-  args:
   args: ["-manifest_type", "InstanceSet", "-manifest", "apps/${_APP_NAME}/instance_set.yaml", "-output_file", "apps/${_APP_NAME}/envs"]
   timeout: 60s
   volumes:
