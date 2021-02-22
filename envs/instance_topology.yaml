@@ -1,7 +1,7 @@
 apiVersion: graybox.anthosapis.com/v1alpha1
 kind: InstanceTopology
 metadata:
-  name: ignore
+  name: system-generated-ignore
 spec:
   edgeInstanceName: graybox
   edgeNamespace: db
