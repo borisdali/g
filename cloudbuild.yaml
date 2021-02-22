@@ -6,7 +6,6 @@ substitutions:
   "_DEST_PATH": "final/namespaces"
   "_NAMESPACE_FLEET": "fleet-objects-git"
   "_SECRET_NAME": "cloud-build-secret"
-  "_APP_NAME": "financials"
   "_PROJECT_KUSTOMIZE": "bdali-playground-graybox"
 timeout: 720s
 steps:
@@ -42,6 +41,7 @@ steps:
   volumes:
   - name: 'ssh'
     path: /root/.ssh
+
 - name: 'gcr.io/cloud-builders/git'
   id: 'Clone a DRY repo'
   args:
@@ -69,24 +69,74 @@ steps:
     path: /dest
 
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-  id: 'Copy changes: DRY->WET'
+  id: 'Determine what changed'
   waitFor:
   - 'Clone a DRY repo'
-  - 'Clone a WET repo'
+  dir: /source
+  entrypoint: /bin/sh
+  args:
+  - '-c'
+  - |
+    cd /source/${_SOURCE_REPO}
+    git remote get-url origin
+
+    for app in `ls -d apps/*|grep -v envs`; do
+      if git diff HEAD^ --quiet $app; then
+        echo "$app app NOT changed"
+      else
+        echo "$app changed"
+        echo $app|awk -F/ '{print$2}'>> /tmp/apps
+        git diff HEAD^ $app
+      fi
+    done
+
+    for app in `ls -d apps/envs/*`; do
+      if git diff HEAD^ --quiet $app; then
+        echo "$app NOT changed"
+      else
+        echo "$app changed"
+        echo $app|awk -F/ '{print$3}'>> /tmp/apps
+        git diff HEAD^ $app
+      fi
+    done
+
+    if [ -f /tmp/apps ]; then
+      sort /tmp/apps | uniq > /workspace/appsu
+      echo "Verdict: app(s) changed: `cat /workspace/appsu`"
+    else
+      echo "Verdict: No app changes"
+    fi
+  timeout: 300s
+  volumes:
+  - name: source
+    path: /source
+  - name: 'ssh'
+    path: /root/.ssh
+
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  id: 'Copy changes: DRY->WET'
+  waitFor:
+  - 'Determine what changed'
   dir: /dest
   entrypoint: /bin/sh
   args:
   - '-c'
   - |
+    git remote get-url origin
     ls -lR /source/${_SOURCE_REPO}/${_SOURCE_PATH}
     cd /dest/${_DEST_REPO}
-    git remote get-url origin
+    mv /workspace/appsu .
 
-    rm -rf /dest/${_DEST_REPO}/apps/${_APP_NAME}
-    mkdir -p /dest/${_DEST_REPO}/apps/${_APP_NAME}
-    rm -rf /dest/${_DEST_REPO}/${_SOURCE_PATH}/envs/${_APP_NAME}
-    mkdir -p /dest/${_DEST_REPO}/${_SOURCE_PATH}/envs/${_APP_NAME}
-    rm -rf /dest/${_DEST_REPO}/${_DEST_PATH}/${_NAMESPACE_FLEET}/*${_APP_NAME}*
+    for app in `cat appsu`; do
+      rm -rf /dest/${_DEST_REPO}/apps/${app}
+      mkdir -p /dest/${_DEST_REPO}/apps/${app}
+      rm -rf /dest/${_DEST_REPO}/${_SOURCE_PATH}/envs/${app}
+      mkdir -p /dest/${_DEST_REPO}/${_SOURCE_PATH}/envs/${app}
+      rm -rf /dest/${_DEST_REPO}/${_DEST_PATH}/${_NAMESPACE_FLEET}/*${app}*
+
+      cp -r /source/${_SOURCE_REPO}/${_SOURCE_PATH}/${app}/* /dest/${_DEST_REPO}/apps/${app}/
+      cp -r /source/${_SOURCE_REPO}/${_SOURCE_PATH}/envs/${app}/* /dest/${_DEST_REPO}/${_SOURCE_PATH}/envs/${app}/
+    done
     mkdir -p /dest/${_DEST_REPO}/${_DEST_PATH}/${_NAMESPACE_FLEET}
     cat <<EOF > /dest/${_DEST_REPO}/${_DEST_PATH}/${_NAMESPACE_FLEET}/namespace.yaml
     apiVersion: v1
@@ -105,11 +155,6 @@ steps:
       version: 1.0.0
     EOF
 
-    echo "content of /dest BEFORE:"
-    ls -lR /dest/${_DEST_REPO}/${_DEST_PATH}/${_NAMESPACE_FLEET}
-
-    cp -r /source/${_SOURCE_REPO}/${_SOURCE_PATH}/${_APP_NAME}/* /dest/${_DEST_REPO}/apps/${_APP_NAME}/
-    cp -r /source/${_SOURCE_REPO}/${_SOURCE_PATH}/envs/${_APP_NAME}/* /dest/${_DEST_REPO}/${_SOURCE_PATH}/envs/${_APP_NAME}/
     touch /dest/${_DEST_REPO}/.gitkeep
     echo "content of /dest/.../${_SOURCE_PATH} AFTER:"
     ls -lR /dest/${_DEST_REPO}/${_SOURCE_PATH}
@@ -135,7 +180,7 @@ steps:
   - 'Copy changes: DRY->WET'
   dir: /dest/${_DEST_REPO}
   entrypoint: /parser
-  args: ["-manifest_type", "InstanceSet", "-manifest", "apps/${_APP_NAME}/instance_set.yaml", "-output_file", "apps/${_APP_NAME}/envs"]
+  args: ["-manifest_type", "InstanceSet", "-manifest_root", "apps"]
   timeout: 60s
   volumes:
   - name: dest
@@ -152,78 +197,82 @@ steps:
   args:
   - '-c'
   - |
-    echo "  appName: ${_APP_NAME}" >> apps/${_APP_NAME}/instance_topology.yaml
-    echo "  pathManifest: apps/${_APP_NAME}" >> apps/${_APP_NAME}/instance_topology.yaml
-    awk '/metadata/ {getline; gsub(/"/, ""); print $2}' apps/${_APP_NAME}/instance.yaml>/tmp/i
-    envs=`cat apps/${_APP_NAME}/envs`
-    echo "envs: $envs"
-    cd ${_DEST_PATH}/${_NAMESPACE_FLEET}
-    mkdir -p iset
-    mv ../../../apps/${_APP_NAME}/instance_set.yaml iset/
-    for e in `cat ../../../apps/${_APP_NAME}/envs`; do
-      echo "app/env: ${_APP_NAME}/${e}"
-      mkdir -p ${e}
-      cd ${e}
-      cat <<EOF > kustomization.yaml
+    for app in `cat appsu`; do
+      echo "  appName: ${app}" >> apps/${app}/instance_topology.yaml
+      echo "  pathManifest: apps/${app}" >> apps/${app}/instance_topology.yaml
+      awk '/metadata/ {getline; gsub(/"/, ""); print $2}' apps/${app}/instance.yaml>/tmp/i
+      envs=`cat apps/${app}/envs`
+      echo "envs for app ${app}: $envs"
+      cd ${_DEST_PATH}/${_NAMESPACE_FLEET}
+
+      mkdir -p iset
+      mv ../../../apps/${app}/instance_set.yaml iset/
+      for e in `cat ../../../apps/${app}/envs`; do
+        echo "app/env: ${app}/${e}"
+        mkdir -p ${e}
+        cd ${e}
+        cat <<EOF > kustomization.yaml
     apiVersion: kustomize.config.k8s.io/v1beta1
     kind: Kustomization
     resources:
-    - ../../../../apps/${_APP_NAME}
+    - ../../../../apps/${app}
     commonLabels:
-        app: "${_APP_NAME}"
+        app: "${app}"
         env: "${e}"
     commonAnnotations:
          "graybox.anthosapis.com/dry-repo-hash": commit-hash
-    nameSuffix: "-${_APP_NAME}-${e}"
+    nameSuffix: "-${app}-${e}"
     namespace: fleet-objects-git
     EOF
 
-      if [ -d "/dest/${_DEST_REPO}/${_SOURCE_PATH}/envs/${_APP_NAME}/${e}" ] ;then
-        echo "patches:" >> kustomization.yaml
-        echo "- path: instance_topology.yaml" >> kustomization.yaml
-        echo "  target:" >> kustomization.yaml
-        echo "    kind: InstanceTopology" >> kustomization.yaml
+        if [ -d "/dest/${_DEST_REPO}/${_SOURCE_PATH}/envs/${app}/${e}" ] ;then
+          echo "patches:" >> kustomization.yaml
+          echo "- path: instance_topology.yaml" >> kustomization.yaml
+          echo "  target:" >> kustomization.yaml
+          echo "    kind: InstanceTopology" >> kustomization.yaml
 
-        cp kustomization.yaml ../iset
-        mv kustomization.yaml /dest/${_DEST_REPO}/${_SOURCE_PATH}/envs/${_APP_NAME}/${e}/
-        kustomize build /dest/${_DEST_REPO}/${_SOURCE_PATH}/envs/${_APP_NAME}/${e} > tmp.yaml
-        echo "kustomize rc (envs): $?"
-        mv /dest/${_DEST_REPO}/${_SOURCE_PATH}/envs/${_APP_NAME}/${e}/kustomization.yaml ../kustomization-${_APP_NAME}-${e}
-      else
-        cp kustomization.yaml ../iset
-        kustomize build . > tmp.yaml
-        echo "kustomize rc: $?"
-        mv kustomization.yaml ../kustomization-${_APP_NAME}-${e}
-      fi
+          cp kustomization.yaml ../iset
+          mv kustomization.yaml /dest/${_DEST_REPO}/${_SOURCE_PATH}/envs/${app}/${e}/
+          kustomize build /dest/${_DEST_REPO}/${_SOURCE_PATH}/envs/${app}/${e} > tmp.yaml
+          echo "kustomize rc (envs): $?"
+          mv /dest/${_DEST_REPO}/${_SOURCE_PATH}/envs/${app}/${e}/kustomization.yaml ../kustomization-${app}-${e}
+        else
+          cp kustomization.yaml ../iset
+          kustomize build . > tmp.yaml
+          echo "kustomize rc: $?"
+          mv kustomization.yaml ../kustomization-${app}-${e}
+        fi
 
-      echo "  env: ${e}" >> tmp.yaml
-      echo "  fleetInstanceName: `cat /tmp/i`-${_APP_NAME}-${e}" >> tmp.yaml
-      cat tmp.yaml >> ../${_APP_NAME}.yaml
+        echo "  env: ${e}" >> tmp.yaml
+        echo "  fleetInstanceName: `cat /tmp/i`-${app}-${e}" >> tmp.yaml
+        cat tmp.yaml >> ../${app}.yaml
+        rm tmp.yaml
+        cd ..
+        ls -l ${e}
+        rmdir ${e}
+        echo "---" >> ${app}.yaml
+      done
+
+      cd iset
+      sed -i '/nameSuffix/d' kustomization.yaml
+      sed -i '/base/d' kustomization.yaml
+      sed -i '/^-/,$d' kustomization.yaml
+      sed -i 's]resources:]resources:\n- instance_set.yaml]' kustomization.yaml
+      sed -i '/^patches/,$d' kustomization.yaml
+      kustomize build . > tmp.yaml
+      echo "kustomize rc (iset): $?"
+      sed -i "/metadata:/! b;n;c\ \ name: ${app}-iset" tmp.yaml
+      echo "    name: ${app}" >> tmp.yaml
+      cat tmp.yaml >> ../${app}.yaml
+
+      mv instance_set.yaml ../../../../apps/${app}/
+
       rm tmp.yaml
+      mv kustomization.yaml ../kustomization-${app}
       cd ..
-      ls -l ${e}
-      rmdir ${e}
-      echo "---" >> ${_APP_NAME}.yaml
+      rmdir iset
+      cd /dest/${_DEST_REPO}
     done
-
-    cd iset
-    sed -i '/nameSuffix/d' kustomization.yaml
-    sed -i '/base/d' kustomization.yaml
-    sed -i '/^-/,$d' kustomization.yaml
-    sed -i 's]resources:]resources:\n- instance_set.yaml]' kustomization.yaml
-    sed -i '/^patches/,$d' kustomization.yaml
-    kustomize build . > tmp.yaml
-    echo "kustomize rc (iset): $?"
-    sed -i "/metadata:/! b;n;c\ \ name: ${_APP_NAME}-iset" tmp.yaml
-    echo "    name: ${_APP_NAME}" >> tmp.yaml
-    cat tmp.yaml >> ../${_APP_NAME}.yaml
-
-    mv instance_set.yaml ../../../../apps/${_APP_NAME}/
-
-    rm tmp.yaml
-    mv kustomization.yaml ../kustomization-${_APP_NAME}
-    cd ..
-    rmdir iset
   timeout: 300s
   volumes:
   - name: dest
