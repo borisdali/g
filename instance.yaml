@@ -13,7 +13,7 @@ spec:
     type: pd-standard
   - name: LogDisk
     size: 55Gi
-    type: pd-standard
+    type: pd-ssd
   - name: BackupDisk
     size: 65Gi
     type: pd-standard
