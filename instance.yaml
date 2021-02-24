@@ -14,6 +14,9 @@ spec:
   - name: LogDisk
     size: 55Gi
     type: pd-standard
+  - name: BackupDisk
+    size: 65Gi
+    type: pd-standard
   storageClass: csi-gce-pd
   services:
   - Backup
