@@ -230,10 +230,13 @@ steps:
           echo "- path: instance_topology.yaml" >> kustomization.yaml
           echo "  target:" >> kustomization.yaml
           echo "    kind: InstanceTopology" >> kustomization.yaml
+          echo "- path: instance.yaml" >> kustomization.yaml
+          echo "  target:" >> kustomization.yaml
+          echo "    kind: Instance" >> kustomization.yaml
 
           cp kustomization.yaml ../iset
           mv kustomization.yaml /dest/${_DEST_REPO}/${_SOURCE_PATH}/envs/${app}/${e}/
-          kustomize build /dest/${_DEST_REPO}/${_SOURCE_PATH}/envs/${app}/${e} > tmp.yaml
+          kustomize build /dest/${_DEST_REPO}/${_SOURCE_PATH}/envs/${app}/${e}|grep -v dummy-parameter > tmp.yaml
           echo "kustomize rc (envs): $?"
           mv /dest/${_DEST_REPO}/${_SOURCE_PATH}/envs/${app}/${e}/kustomization.yaml ../kustomization-${app}-${e}
         else
