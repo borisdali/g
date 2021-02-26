@@ -14,6 +14,9 @@ spec:
   - name: LogDisk
     size: 55Gi
     type: pd-standard
+  - name: BackupDisk
+    size: 65Gi
+    type: pd-standard
   storageClass: csi-gce-pd
   services:
   - Backup
@@ -27,7 +30,7 @@ spec:
     service: "gcr.io/graybox-builds/oracle_12_2_enterprise_service:stable"
   parameters:
     # parallel_servers_target:dynamic  disk_asynch_io:static
-    parameterList: ["parallel_servers_target=15", "disk_asynch_io=TRUE"]
+    parameterList: ["parallel_servers_target=15", "disk_asynch_io=TRUE", "optimizer_index_caching=90"]
     restartTimeRange: ["2021-01-15T15:30:30Z", "2121-02-15T15:45:30Z"]
   additionalParams: ["open_cursors=300", "db_block_size=8192", "processes=300"]
 # Uncomment this section to trigger a restore.

@@ -6,4 +6,5 @@ spec:
   edgeInstanceName: graybox
   edgeNamespace: db
   clusterName: graybox
+  env: prod
 
